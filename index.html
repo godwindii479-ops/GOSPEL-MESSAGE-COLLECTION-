@@ -1,0 +1,778 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0f172a">
+<title>Gospel Message Collection</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{--bg:#f6f7fb;--card:#fff;--text:#111827;--muted:#667085;--line:#e5e7eb;--primary:#2563eb;--danger:#dc2626;--success:#15803d}
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--text)}
+button,input,textarea,select{font:inherit}button{cursor:pointer}.hidden{display:none!important}
+.app{max-width:900px;margin:auto;min-height:100vh}.top{position:sticky;top:0;z-index:10;background:#0f172a;color:#fff;padding:16px}
+.brand{font-weight:800;font-size:20px}.tag{font-size:12px;color:#cbd5e1;margin-top:3px}
+.nav{display:flex;gap:8px;margin-top:14px;overflow:auto}.nav button{border:0;border-radius:10px;padding:9px 12px;background:#1e293b;color:#fff;white-space:nowrap}.nav button.active{background:var(--primary)}
+main{padding:16px}.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;margin-bottom:14px;box-shadow:0 2px 10px #00000008}
+h1,h2,h3{margin:0 0 10px}.muted{color:var(--muted)}.small{font-size:13px}.status{padding:10px 12px;border-radius:10px;background:#ecfdf3;color:var(--success);margin-bottom:14px;font-size:13px}
+.search{width:100%;padding:13px;border:1px solid var(--line);border-radius:12px;margin:10px 0 14px;background:#fff}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}.msg{border:1px solid var(--line);border-radius:14px;padding:14px;background:#fff}.msg h3{font-size:17px}.pill{display:inline-block;background:#eff6ff;color:#1d4ed8;border-radius:999px;padding:4px 9px;font-size:12px;margin:2px 4px 8px 0}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.btn{border:0;border-radius:10px;padding:10px 13px;background:var(--primary);color:#fff}.btn.secondary{background:#eef2f7;color:#111827}.btn.danger{background:var(--danger)}.btn:disabled{opacity:.5;cursor:not-allowed}
+label{display:block;font-size:13px;font-weight:700;margin:12px 0 6px}input,textarea,select{width:100%;padding:12px;border:1px solid var(--line);border-radius:10px;background:#fff}textarea{min-height:160px;resize:vertical}
+.auth{max-width:430px;margin:30px auto}.auth-tabs{display:flex;gap:8px;margin-bottom:14px}.auth-tabs button{flex:1;border:1px solid var(--line);background:#fff;padding:10px;border-radius:10px}.auth-tabs button.active{background:#0f172a;color:#fff}
+.empty{text-align:center;padding:30px 10px;color:var(--muted)}.error{background:#fef2f2;color:#b91c1c;padding:10px;border-radius:10px;margin:10px 0;font-size:13px}.success{background:#ecfdf5;color:#047857;padding:10px;border-radius:10px;margin:10px 0;font-size:13px}
+.reader{white-space:pre-wrap;line-height:1.75}.topline{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+footer{padding:25px 16px;text-align:center;color:var(--muted);font-size:12px}
+</style>
+</head>
+<body>
+
+<div id="authScreen" class="app">
+  <div class="auth">
+    <div class="card">
+      <div class="brand">📖 Gospel Message Collection</div>
+      <div class="tag">Collect • Study • Share the Word</div>
+    </div>
+
+    <div class="card">
+      <div class="auth-tabs">
+        <button id="loginTab" class="active" onclick="showAuth('login')">Login</button>
+        <button id="signupTab" onclick="showAuth('signup')">Create Account</button>
+      </div>
+
+      <div id="authMessage"></div>
+
+      <form id="authForm" onsubmit="handleAuth(event)">
+        <div id="nameField" class="hidden">
+          <label>Full name</label>
+          <input id="fullName" autocomplete="name" placeholder="Your name">
+        </div>
+
+        <label>Email</label>
+        <input id="email" type="email" required autocomplete="email" placeholder="you@example.com">
+
+        <label>Password</label>
+        <input id="password" type="password" required minlength="6" autocomplete="current-password" placeholder="At least 6 characters">
+
+        <div class="actions">
+          <button class="btn" id="authBtn" type="submit">Login</button>
+        </div>
+      </form>
+
+      <p class="small muted" id="authHint">Use your account email and password to continue.</p>
+    </div>
+  </div>
+</div>
+
+<div id="appScreen" class="app hidden">
+<header class="top">
+  <div class="brand">📖 Gospel Message Collection</div>
+  <div class="tag">Collect • Study • Share the Word</div>
+
+  <div class="nav">
+    <button data-page="home" class="active" onclick="go('home')">Home</button>
+    <button data-page="messages" onclick="go('messages')">Messages</button>
+    <button data-page="saved" onclick="go('saved')">Saved</button>
+    <button data-page="add" onclick="go('add')">+ Add</button>
+    <button onclick="logout()">Logout</button>
+  </div>
+</header>
+
+<main>
+
+  <div id="connection" class="status">
+    Connecting to Supabase…
+  </div>
+
+  <section id="homePage">
+    <div class="card">
+      <h1>Welcome 👋</h1>
+      <p id="welcomeText" class="muted">Loading your account…</p>
+
+      <input
+        id="homeSearch"
+        class="search"
+        placeholder="Search messages, topics or Bible references…"
+        oninput="renderSearch(this.value)"
+      >
+    </div>
+
+    <div class="card">
+      <h2>Recent Messages</h2>
+      <div id="recent"></div>
+    </div>
+  </section>
+
+  <section id="messagesPage" class="hidden">
+    <div class="card">
+      <h2>Gospel Messages</h2>
+
+      <input
+        id="messageSearch"
+        class="search"
+        placeholder="Search title, content or scripture…"
+        oninput="renderMessages(this.value)"
+      >
+
+      <div id="messageList"></div>
+    </div>
+  </section>
+
+  <section id="savedPage" class="hidden">
+    <div class="card">
+      <h2>Saved Messages</h2>
+      <div id="savedList"></div>
+    </div>
+  </section>
+
+  <section id="addPage" class="hidden">
+    <div class="card">
+      <h2>Add a Gospel Message</h2>
+
+      <div id="addMessage"></div>
+
+      <form onsubmit="addMessage(event)">
+        <label>Title</label>
+        <input id="title" required placeholder="Message title">
+
+        <label>Category</label>
+        <input id="category" placeholder="Faith, Prayer, Salvation…">
+
+        <label>Bible reference</label>
+        <input id="scripture" placeholder="Romans 8:28">
+
+        <label>Message</label>
+        <textarea id="content" required placeholder="Write the message here…"></textarea>
+
+        <div class="actions">
+          <button class="btn" type="submit">Save Message</button>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <section id="readerPage" class="hidden"></section>
+
+</main>
+
+<footer>
+Gospel Message Collection • Supabase connected
+</footer>
+
+</div>
+
+<script>
+
+const SUPABASE_URL = "https://jxnsotllhoscqoxdtvai.supabase.co";
+
+const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_unfoUqD-l0LmtldgJ5F8sA_8CwA44Bg";
+
+const db = window.supabase.createClient(
+  SUPABASE_URL,
+  SUPABASE_PUBLISHABLE_KEY
+);
+
+let currentUser = null;
+let authMode = "login";
+let allMessages = [];
+let savedIds = new Set();
+
+function esc(v){
+  return String(v ?? "").replace(
+    /[&<>"']/g,
+    m => ({
+      "&":"&amp;",
+      "<":"&lt;",
+      ">":"&gt;",
+      "\"":"&quot;",
+      "'":"&#039;"
+    }[m])
+  );
+}
+
+function showAuth(mode){
+
+  authMode = mode;
+
+  document.getElementById("loginTab")
+    .classList.toggle("active",mode==="login");
+
+  document.getElementById("signupTab")
+    .classList.toggle("active",mode==="signup");
+
+  document.getElementById("nameField")
+    .classList.toggle("hidden",mode!=="signup");
+
+  document.getElementById("authBtn").textContent =
+    mode==="login" ? "Login" : "Create Account";
+
+  document.getElementById("authHint").textContent =
+    mode==="login"
+      ? "Use your account email and password to continue."
+      : "Create an account to save and add messages.";
+
+  document.getElementById("authMessage").innerHTML="";
+}
+
+async function handleAuth(e){
+
+  e.preventDefault();
+
+  const email =
+    document.getElementById("email").value.trim();
+
+  const password =
+    document.getElementById("password").value;
+
+  const fullName =
+    document.getElementById("fullName").value.trim();
+
+  const box =
+    document.getElementById("authMessage");
+
+  box.innerHTML="";
+
+  document.getElementById("authBtn").disabled=true;
+
+  try{
+
+    if(authMode==="signup"){
+
+      const {data,error} =
+        await db.auth.signUp({
+          email,
+          password,
+          options:{
+            data:{
+              full_name:fullName
+            }
+          }
+        });
+
+      if(error) throw error;
+
+      if(data.session){
+
+        await enterApp(data.session.user);
+
+      }else{
+
+        box.innerHTML =
+          '<div class="success">Account created. Check your email to confirm your account, then log in.</div>';
+
+      }
+
+    }else{
+
+      const {data,error} =
+        await db.auth.signInWithPassword({
+          email,
+          password
+        });
+
+      if(error) throw error;
+
+      await enterApp(data.user);
+    }
+
+  }catch(err){
+
+    box.innerHTML =
+      '<div class="error">'+
+      esc(err.message || "Authentication failed.")+
+      '</div>';
+
+  }finally{
+
+    document.getElementById("authBtn").disabled=false;
+  }
+}
+
+async function logout(){
+
+  await db.auth.signOut();
+
+  currentUser=null;
+
+  document.getElementById("appScreen")
+    .classList.add("hidden");
+
+  document.getElementById("authScreen")
+    .classList.remove("hidden");
+
+  showAuth("login");
+}
+
+async function enterApp(user){
+
+  currentUser=user;
+
+  document.getElementById("authScreen")
+    .classList.add("hidden");
+
+  document.getElementById("appScreen")
+    .classList.remove("hidden");
+
+  const name =
+    user.user_metadata?.full_name ||
+    user.email?.split("@")[0] ||
+    "friend";
+
+  document.getElementById("welcomeText").textContent =
+    `Welcome, ${name}. Search, study and save Gospel messages.`;
+
+  document.getElementById("connection").textContent =
+    "✓ Connected to Supabase";
+
+  await loadMessages();
+
+  await loadSaved();
+
+  go("home");
+}
+
+async function loadMessages(){
+
+  const {data,error} =
+    await db
+      .from("messages")
+      .select("*")
+      .order("created_at",{ascending:false});
+
+  if(error){
+
+    document.getElementById("connection").className="error";
+
+    document.getElementById("connection").textContent =
+      error.message;
+
+    return;
+  }
+
+  allMessages=data || [];
+
+  renderRecent();
+
+  renderMessages(
+    document.getElementById("messageSearch")?.value || ""
+  );
+
+  renderSearch(
+    document.getElementById("homeSearch")?.value || ""
+  );
+}
+
+async function loadSaved(){
+
+  if(!currentUser)return;
+
+  const {data,error} =
+    await db
+      .from("saved_messages")
+      .select("message_id")
+      .eq("user_id",currentUser.id);
+
+  if(!error){
+
+    savedIds =
+      new Set((data || []).map(x=>x.message_id));
+
+  }
+
+  renderSaved();
+}
+
+function go(page){
+
+  ["home","messages","saved","add","reader"]
+    .forEach(p =>
+      document
+        .getElementById(p+"Page")
+        .classList.toggle("hidden",p!==page)
+    );
+
+  document
+    .querySelectorAll(".nav button[data-page]")
+    .forEach(b =>
+      b.classList.toggle(
+        "active",
+        b.dataset.page===page
+      )
+    );
+
+  if(page==="saved") renderSaved();
+}
+
+function card(m){
+
+  const saved=savedIds.has(m.id);
+
+  return `<article class="msg">
+
+    <span class="pill">
+      ${esc(m.category||"Gospel")}
+    </span>
+
+    <h3>${esc(m.title)}</h3>
+
+    ${
+      m.scripture_reference
+      ? `<div class="small muted">
+          📖 ${esc(m.scripture_reference)}
+         </div>`
+      : ""
+    }
+
+    <p>
+      ${esc((m.content||"").slice(0,180))}
+      ${(m.content||"").length>180?"…":""}
+    </p>
+
+    <div class="actions">
+
+      <button
+        class="btn"
+        onclick="readMessage(${Number(m.id)})">
+        Read
+      </button>
+
+      <button
+        class="btn secondary"
+        onclick="toggleSave(${Number(m.id)})">
+        ${saved?"♥ Saved":"♡ Save"}
+      </button>
+
+      <button
+        class="btn secondary"
+        onclick="shareMessage(${Number(m.id)})">
+        Share
+      </button>
+
+    </div>
+
+  </article>`;
+}
+
+function renderRecent(){
+
+  const list=allMessages.slice(0,6);
+
+  document.getElementById("recent").innerHTML =
+    list.length
+      ? `<div class="grid">
+          ${list.map(card).join("")}
+         </div>`
+      : `<div class="empty">
+          No messages yet. Add your first Gospel message.
+         </div>`;
+}
+
+function filterMessages(q){
+
+  q=(q||"").toLowerCase().trim();
+
+  return allMessages.filter(m =>
+    !q ||
+    [
+      m.title,
+      m.content,
+      m.scripture_reference,
+      m.category
+    ].some(v =>
+      String(v||"").toLowerCase().includes(q)
+    )
+  );
+}
+
+function renderMessages(q){
+
+  const list=filterMessages(q);
+
+  document.getElementById("messageList").innerHTML =
+    list.length
+      ? `<div class="grid">
+          ${list.map(card).join("")}
+         </div>`
+      : `<div class="empty">
+          No matching messages found.
+         </div>`;
+}
+
+function renderSearch(q){
+
+  const box=document.getElementById("recent");
+
+  if(!box)return;
+
+  const list =
+    q
+      ? filterMessages(q).slice(0,8)
+      : allMessages.slice(0,6);
+
+  box.innerHTML =
+    list.length
+      ? `<div class="grid">
+          ${list.map(card).join("")}
+         </div>`
+      : `<div class="empty">
+          No matching messages found.
+         </div>`;
+}
+
+function renderSaved(){
+
+  const list =
+    allMessages.filter(m =>
+      savedIds.has(m.id)
+    );
+
+  document.getElementById("savedList").innerHTML =
+    list.length
+      ? `<div class="grid">
+          ${list.map(card).join("")}
+         </div>`
+      : `<div class="empty">
+          You haven't saved any messages yet.
+         </div>`;
+}
+
+async function toggleSave(id){
+
+  if(!currentUser){
+    alert("Please log in first.");
+    return;
+  }
+
+  try{
+
+    if(savedIds.has(id)){
+
+      const {error} =
+        await db
+          .from("saved_messages")
+          .delete()
+          .eq("user_id",currentUser.id)
+          .eq("message_id",id);
+
+      if(error)throw error;
+
+      savedIds.delete(id);
+
+    }else{
+
+      const {error} =
+        await db
+          .from("saved_messages")
+          .insert({
+            user_id:currentUser.id,
+            message_id:id
+          });
+
+      if(error)throw error;
+
+      savedIds.add(id);
+    }
+
+    renderRecent();
+
+    renderMessages(
+      document.getElementById("messageSearch")?.value || ""
+    );
+
+    renderSaved();
+
+    renderSearch(
+      document.getElementById("homeSearch")?.value || ""
+    );
+
+  }catch(err){
+
+    alert(
+      err.message ||
+      "Could not update saved message."
+    );
+  }
+}
+
+function readMessage(id){
+
+  const m =
+    allMessages.find(x=>x.id===id);
+
+  if(!m)return;
+
+  document.getElementById("readerPage").innerHTML =
+    `<div class="card">
+
+      <div class="topline">
+
+        <div>
+
+          <span class="pill">
+            ${esc(m.category||"Gospel")}
+          </span>
+
+          <h1>${esc(m.title)}</h1>
+
+          ${
+            m.scripture_reference
+              ? `<p class="muted">
+                   📖 ${esc(m.scripture_reference)}
+                 </p>`
+              : ""
+          }
+
+        </div>
+
+      </div>
+
+      <div class="reader">
+        ${esc(m.content)}
+      </div>
+
+      <div class="actions">
+
+        <button
+          class="btn secondary"
+          onclick="go('messages')">
+          ← Back
+        </button>
+
+        <button
+          class="btn secondary"
+          onclick="toggleSave(${Number(m.id)})">
+          ${savedIds.has(m.id)?"♥ Saved":"♡ Save"}
+        </button>
+
+        <button
+          class="btn secondary"
+          onclick="shareMessage(${Number(m.id)})">
+          Share
+        </button>
+
+      </div>
+
+    </div>`;
+
+  go("reader");
+}
+
+async function shareMessage(id){
+
+  const m =
+    allMessages.find(x=>x.id===id);
+
+  if(!m)return;
+
+  const text =
+    `${m.title}\n${m.scripture_reference||""}\n\n${m.content}`;
+
+  try{
+
+    if(navigator.share){
+
+      await navigator.share({
+        title:m.title,
+        text
+      });
+
+    }else{
+
+      await navigator.clipboard.writeText(text);
+
+      alert("Message copied to clipboard.");
+    }
+
+  }catch(e){}
+}
+
+async function addMessage(e){
+
+  e.preventDefault();
+
+  const box =
+    document.getElementById("addMessage");
+
+  box.innerHTML="";
+
+  if(!currentUser){
+
+    box.innerHTML =
+      '<div class="error">Please log in first.</div>';
+
+    return;
+  }
+
+  const payload={
+
+    title:
+      document.getElementById("title")
+      .value.trim(),
+
+    category:
+      document.getElementById("category")
+      .value.trim() || "Gospel",
+
+    scripture_reference:
+      document.getElementById("scripture")
+      .value.trim(),
+
+    content:
+      document.getElementById("content")
+      .value.trim(),
+
+    author_id:
+      currentUser.id
+  };
+
+  try{
+
+    const {error} =
+      await db
+        .from("messages")
+        .insert(payload);
+
+    if(error)throw error;
+
+    e.target.reset();
+
+    box.innerHTML =
+      '<div class="success">Message added successfully.</div>';
+
+    await loadMessages();
+
+  }catch(err){
+
+    box.innerHTML =
+      '<div class="error">'+
+      esc(err.message || "Could not add message.")+
+      '</div>';
+  }
+}
+
+db.auth.onAuthStateChange(
+  (event,session)=>{
+
+    if(session && !currentUser)
+      enterApp(session.user);
+
+    if(!session && currentUser)
+      logout();
+
+  }
+);
+
+(async()=>{
+
+  const {data} =
+    await db.auth.getSession();
+
+  if(data.session)
+    await enterApp(data.session.user);
+
+})();
+
+</script>
+
+</body>
+        </html>
